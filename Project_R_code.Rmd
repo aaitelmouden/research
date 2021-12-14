@@ -1,0 +1,404 @@
+---
+title: "Research Project"
+author: "Abdellah AitElmouden"
+date: "10/31/2021"
+output:
+  pdf_document: 
+     latex_engine: xelatex
+---
+
+
+## R Markdown
+
+```{r setup, include=FALSE}
+library(skimr)
+library(GGally)
+library(caret)
+library(mice)
+library(tidyverse)
+library(DataExplorer)
+library(MASS)
+library(naniar)
+library(corrplot)
+library(VIM)
+library(ggpubr)
+```
+
+```{r, echo=FALSE}
+energy_data <- read.csv("data.csv")
+```
+
+### Data Exploration and Cleaning
+
+```{r}
+glimpse(energy_data)
+```
+**Remove unnecessary columns:**
+
+
+```{r}
+eng_data <- dplyr::select(energy_data, -c(1,2,3,4,5,6,9,11,14,15,19,20,22,23,26,27,28,29))
+```
+
+**Check the Percentage of missing Data**
+
+The plot helps us understanding that almost almost 15% of data are missing the volume and Home size data and 30% are missing units and Year built
+
+```{r}
+
+plot_missing(energy_data,  missing_only = TRUE)
+```
+**Imputing the missing data**
+
+We will use the The mice() function to take care of the imputing process, using predictive mean matching method
+
+```{r}
+imp_value <- mice(eng_data, m = 3, method = "pmm")  
+```
+```{r}
+eng_imputed <- complete(imp_value)
+```
+
+
+
+
+```{r results='hide'}
+#I'll skip this step replace the empty data with NA, since we impute the data
+#library(dplyr)
+mutate_all(eng_imputed, list(~na_if(.,"")))
+eng_df <- eng_imputed %>% mutate_if(is.character, list(~na_if(.,"")))
+```
+
+In this step We will rename some colmuns names to make them shorter:
+- Homeowner.Received.Green.Jobs.Green.NY.Free.Reduced.Cost.Audit..Y.N. ---> HRGJ
+- First.Year.Energy.Savings...Estimate ---> FYES
+- Pre.Retrofit.Home.Heating.Fuel.Type ---> 'Fuel.Type'
+
+
+```{r}
+names(eng_imputed)[names(eng_imputed) == 'Homeowner.Received.Green.Jobs.Green.NY.Free.Reduced.Cost.Audit..Y.N.'] <- 'HRGJ'
+names(eng_imputed)[names(eng_imputed) == 'First.Year.Energy.Savings...Estimate'] <- 'FYES'
+names(eng_imputed)[names(eng_imputed) == 'Pre.Retrofit.Home.Heating.Fuel.Type'] <- 'Fuel.Type'
+```
+
+```{r}
+eng_imputed$Gas.Utility <- as.factor(eng_imputed$Gas.Utility)
+eng_imputed$Electric.Utility <- as.factor(eng_imputed$Electric.Utility)
+eng_imputed$Customer.Type <- as.factor(eng_imputed$Customer.Type)
+eng_imputed$Gas.Utility <- as.factor(eng_imputed$Gas.Utility)
+eng_imputed$Measure.Type <- as.factor(eng_imputed$Measure.Type)
+eng_imputed$HRGJ <- as.factor(eng_imputed$HRGJ)
+eng_imputed$Fuel.Type <- as.factor(eng_imputed$Fuel.Type)
+
+glimpse(eng_imputed)
+```
+```{r}
+unique(eng_imputed$Gas.Utility)
+```
+```{r}
+eng_imputed <- eng_imputed %>% mutate_if(is.factor, as.numeric)
+```
+
+
+
+**Categorical Variables**
+
+We have many categorical Variables, we will replace the string values with numbers as following:
+
+**Gas Utility**
+
+1: NA
+2: "Central Hudson Gas & Electric"
+3: "Consolidated Edison"
+4: "Corning Natural Gas"
+5: "KeySpan Energy"
+6: "Long Island Power Authority"
+7: "Multiple Gas Providers"
+8: "Municipal"
+9: "National Fuel Gas Distribution"
+10: "National Grid"
+11: "New York State Electric & Gas"
+12: "No Gas Provider"
+13: "Orange & Rockland"
+14: "Rochester Gas & Electric"
+15: "Saint Lawrence Gas"
+
+
+**Electric Utility**
+
+1: "Central Hudson Gas & Electric"
+2: "Consolidated Edison"
+3: "Long Island Power Authority"
+4: "Municipal (Not Qualified)"
+5: "National Grid"
+6: "New York State Electric & Gas"
+7: "Orange & Rockland"  
+8: "Rochester Gas & Electric"     
+
+
+**Customer Type**
+
+- 1: "Assisted" 
+- 2: "Market" 
+
+**Measure Type**
+
+- 1: "Building Shell"
+- 2: "Heating and Cooling"
+- 3: "Water Heater"  
+
+**HRGJ**
+
+- 2: "Y" 
+- 1: "N"
+
+**Fuel Type**
+
+- 1: NA
+- 2: "Anthracite Coal"
+- 3: "Bituminous Coal" 
+- 4: "Coal" 
+- 6: "Electricity"
+- 7: "Kerosene"
+- 9: "Natural Gas"
+- 10: "Oil"
+- 11: "Propane"
+- 12: "Wood"
+- 13: "Wood Pellets"
+
+#### Save as csv file:
+
+```{r}
+write.csv(eng_imputed,"./eng_imputed_clean.csv", row.names = FALSE)
+```
+
+
+### Data Exploration and Descriptive statisctis 
+
+**Coming Soon**
+
+```{r}
+skim(eng_imputed, Gas.Utility, Electric.Utility, Customer.Type, Total.Incentives, Fuel.Type, Year.Home.Built, Size.of.Home, Measure.Type, FYES, HRGJ)
+```
+**Categorical Variables**
+
+```{r}
+par(mfrow=c(2,3))
+hist(eng_imputed$Gas.Utility, main="Gas Utility", xlab = "Gas Utility", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Electric.Utility, main="Electric Utility", xlab = "Electric Utility", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Customer.Type, main="Customer Type", xlab = "Customer Type",
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Fuel.Type, main="Fuel Type", xlab = "Fuel Type", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Measure.Type, main="Measure Type", xlab = "Measure Type", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$HRGJ, main="Homeowner Received Green Job", xlab = "HRGJ", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+```
+
+
+
+**Numerical Variables**
+```{r}
+par(mfrow=c(2,2))
+hist(eng_imputed$Total.Incentives, main="Total Incentives", xlab = "Incentives", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Total.Project.Cost, main="Total Project Cost", xlab = "Year", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$Size.of.Home, main="Size of Home", xlab = "Home Size", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+hist(eng_imputed$FYES, main="First Year Energy Saving", xlab = "FYES", 
+     border="blue", 
+     col="blue",
+     las=1, prob = TRUE)
+```
+Some other graphical methods, maybe more helpful than the simple histogram. we used the fitdisrplus package in R to visualize the recovery variable data together with some possible theoretical distributions in a skewness-kurtosis space:
+
+
+```{r}
+library(fitdistrplus)
+plotdist(eng_imputed$FYES, histo = TRUE, demp = TRUE)
+```
+From the empirical density above, our distribution is right skewed and appears to be an exponential type of distribution. The Cullen and Frey Graph below is a good way to exempt some distributions by the parameters of skewness and kurtosis using the descdist function; The orange values around the blue (data) point are based on bootstrapping. From this Cullen and Frey Graph and the empirical graphs above, our choices for good fits would seem to be limited to the available distributions in the fitdistrplus package:
+
+- Weibull
+- gamma
+- exponential
+
+```{r}
+library(fitdistrplus)
+descdist(eng_imputed$FYES, boot=1000) 
+```
+```{r}
+# I added the > 0 because the gamma dist doesn't allow zero values 
+fw <- fitdist(eng_imputed$FYES[eng_imputed$FYES > 0]/10, distr = "weibull")
+fg <- fitdist(eng_imputed$FYES[eng_imputed$FYES > 0]/10, distr = "gamma")
+fe <- fitdist(eng_imputed$FYES[eng_imputed$FYES > 0]/10, distr = "exp")
+par(mfrow = c(2, 2))
+plot.legend <- c("Weibull", "gamma", "expo")
+denscomp(list(fw, fg, fe), legendtext = plot.legend)
+qqcomp(list(fw, fg, fe), legendtext = plot.legend)
+cdfcomp(list(fw, fg, fe), legendtext = plot.legend)
+ppcomp(list(fw, fg, fe), legendtext = plot.legend)
+```
+It seems that still both distribution fits this data the best. Let us confirm this against the Akaline’s and Bayesian Information Criterion (AIC and BIC), which will give a sort of rank to the goodness of fit models passed to it using the gofstat function as well as the Goodness-of-fit statistics, which give distances between the fits and the empirical data.
+
+```{r}
+gofstat(list(fw, fg, fe))
+```
+Since the weibull distribution has the min AIC, BIC, and minimum goodness-of-fit statistics, we will choose the weibull distribution.
+
+
+
+### Correlation
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#eng_df %>% dplyr::select(HRGJ, FYES, Total.Incentives, Customer.Type) %>% ggpairs()
+M<- cor(eng_imputed[, c('Gas.Utility', 'Customer.Type', 'Electric.Utility', 'Electric.Utility' ,'Total.Incentives', 'HRGJ','Fuel.Type', 'Year.Home.Built', 'Size.of.Home', 'Measure.Type','FYES', 'Total.Project.Cost')])
+
+#M <- cor.test(eng_imputed)
+
+head(round(M,2))
+
+```
+
+```{r}
+library(RColorBrewer)
+cor.mtest <- function(mat, ...) 
+{
+  mat <- as.matrix(mat)
+  n <- ncol(mat)
+  p.mat<- matrix(NA, n, n)
+  diag(p.mat) <- 0
+  for (i in 1:(n - 1)) 
+  {
+    for (j in (i + 1):n)
+    {
+      tmp <- cor.test(mat[, i], mat[, j], ...)
+      p.mat[i, j] <- p.mat[j, i] <- tmp$p.value
+    }
+  }
+  colnames(p.mat) <- rownames(p.mat) <- colnames(mat)
+  p.mat
+}
+
+p.mat <- cor.mtest(eng_imputed)
+
+# Correlation 
+M <- cor(eng_imputed)
+
+
+#par(mfrow=c(1,2))
+# Specialized the insignificant value
+# according to the significant level
+corrplot(M, method="number", tl.col = "blue")
+corrplot(M, method="number", type = "upper", order = "hclust", 
+         p.mat = p.mat, sig.level = 0.01, tl.col = "black")
+
+
+```
+
+### Anova Analysis
+
+```{r}
+one.way1 <- aov(FYES ~ Electric.Utility, data = eng_imputed)
+summary(one.way1)
+```
+
+```{r}
+one.way2 <- aov(FYES ~ Gas.Utility, data = eng_imputed)
+summary(one.way2)
+```
+```{r}
+glimpse(eng_imputed)
+```
+```{r}
+two.way1 <- aov(FYES ~ Electric.Utility + Gas.Utility+ Total.Project.Cost+Total.Incentives+Size.of.Home, data = eng_imputed)
+summary(two.way1)
+```
+
+
+
+### Regression Model 
+
+```{r}
+glimpse(eng_imputed)
+```
+
+
+```{r}
+model <- lm(eng_imputed$FYES ~ eng_imputed$Size.of.Home + eng_imputed$Total.Incentives+ Gas.Utility, Electric.Utility+ Fuel.Type, Total.Project.Cost, data = eng_imputed)
+summary(model)
+```
+
+```{r}
+summary(model)$coefficient
+```
+### Using GLM
+
+```{r}
+model2 <- glm(formula = eng_imputed$FYES ~ eng_imputed$Size.of.Home + eng_imputed$Year.Home.Built + 
+    Gas.Utility,family = "Gamma" ,data = eng_imputed)
+```
+
+### Neural Network
+
+In this step I'll split the data to training and test sets, based on the pridector (saving):
+
+
+```{r}
+library(caret)
+partition <- createDataPartition(eng_imputed$FYES, p = 0.7, list=FALSE)
+
+```
+Now lets split
+
+```{r}
+
+train <- eng_imputed[partition,]
+test <- eng_imputed[-partition,]
+# Save to csv file
+#write.csv(eng_df,"./eng_df.csv", row.names = FALSE)
+write.csv(train,"./train.csv", row.names = FALSE)
+write.csv(test,"./test.csv", row.names = FALSE)
+
+```
+
+
+```{r}
+library(neuralnet)
+
+nn <- neuralnet(train$FYES ~ train$Gas.Utility, train$Electric.Utility, train$Total.Incentives, train$Fuel.Type, train$Size.of.Home, data = train, hidden=3, act.fct = "logistic", linear.output = FALSE)
+```
+
+```{r}
+plot(nn)
+```
+
+```{r}
+## Prediction using neural network
+Predict=compute(nn,test)
+Predict$net.result
+```
+
+
